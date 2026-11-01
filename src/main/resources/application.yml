@@ -40,6 +40,14 @@ jobforge:
   default-timeout-ms: ${JOBFORGE_DEFAULT_TIMEOUT_MS:60000}
   default-max-attempts: ${JOBFORGE_DEFAULT_MAX_ATTEMPTS:3}
   node-id: ${JOBFORGE_NODE_ID:}
+  # Per-node claim rate limits in jobs/second by type. Keeps LLM steps under provider quotas.
+  rate-limits:
+    llm: ${JOBFORGE_RATE_LIMIT_LLM:2}
+  llm:
+    provider: ${JOBFORGE_LLM_PROVIDER:auto}      # auto | anthropic | mock
+    model: ${JOBFORGE_LLM_MODEL:claude-opus-5-5}
+    max-tokens: ${JOBFORGE_LLM_MAX_TOKENS:1024}
+    max-tokens-cap: ${JOBFORGE_LLM_MAX_TOKENS_CAP:4096}
 
 management:
   endpoints:

@@ -25,6 +25,9 @@ public record JobResponse(
         Set<UUID> dependsOn,
         String idempotencyKey,
         String callbackUrl,
+        UUID workflowId,
+        String workflowName,
+        String stepId,
         String leaseOwner,
         Instant leaseUntil,
         Instant createdAt,
@@ -38,6 +41,7 @@ public record JobResponse(
                 json.read(j.getPayload()), json.read(j.getResult()), j.getLastError(),
                 j.getAttempts(), j.getMaxAttempts(), j.getTimeoutMs(), j.getRunAt(), j.getCronExpression(),
                 j.getDependsOn(), j.getIdempotencyKey(), j.getCallbackUrl(),
+                j.getWorkflowId(), j.getWorkflowName(), j.getStepId(),
                 j.getLeaseOwner(), j.getLeaseUntil(),
                 j.getCreatedAt(), j.getUpdatedAt(), j.getStartedAt(), j.getFinishedAt());
     }

@@ -6,6 +6,7 @@ import com.manangupta.jobforge.handler.JobHandler;
 import com.manangupta.jobforge.handler.JobHandlerRegistry;
 import com.manangupta.jobforge.handler.JobResult;
 import com.manangupta.jobforge.repository.JobRepository;
+import com.manangupta.jobforge.workflow.TemplateResolver;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
@@ -40,11 +41,13 @@ public class JobExecutor {
     private final ExecutorService handlerPool;
     private final ThreadPoolTaskScheduler heartbeats;
     private final MeterRegistry meters;
+    private final TemplateResolver templates;
 
     public JobExecutor(JobRepository jobs, JobHandlerRegistry registry, JobClaimService claims,
                        JobStateService state, JsonCodec json,
                        @Qualifier("handlerPool") ExecutorService handlerPool,
-                       ThreadPoolTaskScheduler heartbeatScheduler, MeterRegistry meters) {
+                       ThreadPoolTaskScheduler heartbeatScheduler, MeterRegistry meters,
+                       TemplateResolver templates) {
         this.jobs = jobs;
         this.registry = registry;
         this.claims = claims;
@@ -53,6 +56,7 @@ public class JobExecutor {
         this.handlerPool = handlerPool;
         this.heartbeats = heartbeatScheduler;
         this.meters = meters;
+        this.templates = templates;
     }
 
     public void execute(UUID jobId) {
@@ -71,7 +75,13 @@ public class JobExecutor {
             return;
         }
 
-        Map<String, Object> payload = json.read(job.getPayload());
+        Map<String, Object> payload;
+        try {
+            payload = templates.resolve(json.read(job.getPayload()), job);
+        } catch (TemplateResolver.TemplateException e) {
+            finishFailed(job, startedAt, sample, "Template error: " + e.getMessage());
+            return;
+        }
         Context ctx = new Context(job, payload);
 
         // Keep the lease alive while the handler runs; stop the handler if the lease is lost.

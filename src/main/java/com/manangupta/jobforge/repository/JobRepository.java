@@ -61,4 +61,13 @@ public interface JobRepository extends JpaRepository<Job, UUID> {
     Page<Job> findByType(String type, Pageable pageable);
 
     Page<Job> findByStatusAndType(JobStatus status, String type, Pageable pageable);
+
+    Optional<Job> findByWorkflowIdAndStepId(UUID workflowId, String stepId);
+
+    List<Job> findByWorkflowIdOrderByStepOrderAsc(UUID workflowId);
+
+    /** Most recent workflow ids with their name and creation time (one row per workflow). */
+    @Query("select j.workflowId, j.workflowName, min(j.createdAt) from Job j where j.workflowId is not null "
+            + "group by j.workflowId, j.workflowName order by min(j.createdAt) desc")
+    List<Object[]> findRecentWorkflows(Pageable page);
 }

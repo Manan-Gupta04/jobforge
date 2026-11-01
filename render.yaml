@@ -1,0 +1,30 @@
+# Render Blueprint: deploys JobForge from the Dockerfile as a single web service.
+# Pair it with a free Neon PostgreSQL database (see docs/DEPLOY.md) so data survives restarts.
+services:
+  - type: web
+    name: jobforge
+    runtime: docker
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres
+      - key: JOBFORGE_NODE_ID
+        value: render-1
+      - key: JOBFORGE_WORKERS
+        value: "4"
+      - key: JOBFORGE_RATE_LIMIT_LLM
+        value: "1"
+      - key: JOBFORGE_LLM_MAX_TOKENS_CAP
+        value: "600"
+      - key: JAVA_TOOL_OPTIONS
+        value: "-Xmx300m -XX:+UseSerialGC"
+      # Set these in the Render dashboard (never commit them):
+      - key: JOBFORGE_DB_URL
+        sync: false
+      - key: JOBFORGE_DB_USER
+        sync: false
+      - key: JOBFORGE_DB_PASSWORD
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

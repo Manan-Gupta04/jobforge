@@ -9,6 +9,8 @@ import com.manangupta.jobforge.repository.JobRepository;
 import com.manangupta.jobforge.service.ClusterRegistry;
 import com.manangupta.jobforge.service.JobDispatcher;
 import com.manangupta.jobforge.service.MetricsListener;
+import com.manangupta.jobforge.llm.LlmClient;
+import com.manangupta.jobforge.ratelimit.JobTypeRateLimiter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
@@ -27,9 +29,14 @@ public class SystemController {
     private final MetricsListener metrics;
     private final JobHandlerRegistry handlers;
     private final NodeIdentity node;
+    private final LlmClient llm;
+    private final JobTypeRateLimiter rateLimiter;
 
     public SystemController(JobRepository jobs, JobDispatcher dispatcher, ClusterRegistry cluster,
-                            MetricsListener metrics, JobHandlerRegistry handlers, NodeIdentity node) {
+                            MetricsListener metrics, JobHandlerRegistry handlers, NodeIdentity node,
+                            LlmClient llm, JobTypeRateLimiter rateLimiter) {
+        this.llm = llm;
+        this.rateLimiter = rateLimiter;
         this.jobs = jobs;
         this.dispatcher = dispatcher;
         this.cluster = cluster;
@@ -72,6 +79,8 @@ public class SystemController {
         out.put("throughputPerSecond", Math.round(metrics.throughputPerSecond() * 100.0) / 100.0);
         out.put("nodes", nodes);
         out.put("handlerTypes", handlers.types());
+        out.put("llmProvider", llm.provider());
+        out.put("rateLimits", rateLimiter.limits());
         return out;
     }
 

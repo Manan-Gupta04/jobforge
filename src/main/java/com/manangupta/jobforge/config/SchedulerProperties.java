@@ -47,6 +47,9 @@ public class SchedulerProperties {
     /** Optional stable node identifier; a random one is generated when blank. */
     private String nodeId = "";
 
+    /** Per-node claim rate limits by job type, in jobs per second, e.g. {@code rate-limits.llm: 2}. */
+    private java.util.Map<String, Double> rateLimits = new java.util.LinkedHashMap<>();
+
     public int getWorkers() { return workers; }
     public void setWorkers(int workers) { this.workers = workers; }
     public long getPollIntervalMs() { return pollIntervalMs; }
@@ -63,6 +66,8 @@ public class SchedulerProperties {
     public void setDefaultTimeoutMs(long defaultTimeoutMs) { this.defaultTimeoutMs = defaultTimeoutMs; }
     public int getDefaultMaxAttempts() { return defaultMaxAttempts; }
     public void setDefaultMaxAttempts(int defaultMaxAttempts) { this.defaultMaxAttempts = defaultMaxAttempts; }
+    public java.util.Map<String, Double> getRateLimits() { return rateLimits; }
+    public void setRateLimits(java.util.Map<String, Double> rateLimits) { this.rateLimits = rateLimits; }
     public String getNodeId() { return nodeId; }
     public void setNodeId(String nodeId) { this.nodeId = nodeId; }
 }

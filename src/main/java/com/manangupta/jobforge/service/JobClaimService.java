@@ -4,6 +4,7 @@ import com.manangupta.jobforge.config.NodeIdentity;
 import com.manangupta.jobforge.config.SchedulerProperties;
 import com.manangupta.jobforge.domain.Job;
 import com.manangupta.jobforge.domain.JobStatus;
+import com.manangupta.jobforge.ratelimit.JobTypeRateLimiter;
 import com.manangupta.jobforge.repository.JobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,14 +38,16 @@ public class JobClaimService {
     private final JobRepository jobs;
     private final NodeIdentity node;
     private final SchedulerProperties props;
+    private final JobTypeRateLimiter rateLimiter;
     private final TransactionTemplate readTx;
     private final TransactionTemplate writeTx;
 
     public JobClaimService(JobRepository jobs, NodeIdentity node, SchedulerProperties props,
-                           PlatformTransactionManager txManager) {
+                           JobTypeRateLimiter rateLimiter, PlatformTransactionManager txManager) {
         this.jobs = jobs;
         this.node = node;
         this.props = props;
+        this.rateLimiter = rateLimiter;
         this.readTx = new TransactionTemplate(txManager);
         this.readTx.setReadOnly(true);
         this.readTx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -68,6 +71,9 @@ public class JobClaimService {
         for (Job candidate : candidates) {
             if (claimed.size() >= max) {
                 break;
+            }
+            if (!rateLimiter.tryAcquire(candidate.getType())) {
+                continue; // over this type's rate limit; leave it queued for a later cycle
             }
             if (tryClaim(candidate, now)) {
                 claimed.add(candidate.getId());

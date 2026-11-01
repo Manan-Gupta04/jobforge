@@ -62,13 +62,26 @@
   .filters { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
   .filters select { padding: 6px 8px; }
   .tiny { font-size: 11px; padding: 4px 8px; }
+  .wf { display: grid; gap: 6px; background: var(--panel-2); border-radius: 8px; padding: 10px 12px; }
+  .wf .head { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .wf .steps { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .wf .step { display: inline-flex; gap: 6px; align-items: center; padding: 3px 8px; border-radius: 6px; background: var(--panel); border: 1px solid var(--border); font-size: 12px; }
+  .wf .step .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .wf .arrow { color: var(--muted); }
+  .dot.PENDING { background: var(--pending); } .dot.RUNNING { background: var(--running); animation: pulse 1s infinite; }
+  .dot.SUCCEEDED { background: var(--succeeded); } .dot.DEAD { background: var(--dead); }
+  .dot.WAITING { background: var(--waiting); } .dot.CANCELLED { background: var(--cancelled); }
+  @keyframes pulse { 50% { opacity: .3; } }
+  .wf .out { font-size: 12px; color: var(--muted); white-space: pre-wrap; max-height: 90px; overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .wf .status { font-weight: 600; }
+  .wf .status.SUCCEEDED { color: var(--succeeded); } .wf .status.FAILED { color: var(--dead); } .wf .status.RUNNING { color: var(--running); }
 </style>
 </head>
 <body>
 <header>
-  <h1>Job<span>Forge</span> <span class="meta" style="margin-left:10px">distributed job scheduler</span></h1>
+  <h1>Job<span>Forge</span> <span class="meta" style="margin-left:10px">AI workflow orchestration engine</span></h1>
   <div class="meta">
-    node <b id="nodeId">…</b> · throughput <b id="tps">0</b> jobs/s
+    node <b id="nodeId">…</b> · throughput <b id="tps">0</b> jobs/s · LLM <b id="llm">…</b>
     <a href="/swagger-ui.html" target="_blank">API docs</a>
     <a href="/actuator/prometheus" target="_blank">Prometheus</a>
     <a href="/h2" target="_blank">H2 console</a>
@@ -108,10 +121,17 @@
           <button type="button" class="ghost" id="fire2000">Fire 2,000 echo jobs</button>
           <button type="button" class="ghost" id="demoChain">Demo: A → B → C chain</button>
           <button type="button" class="ghost" id="demoFlaky">Demo: retry + DLQ</button>
+          <button type="button" id="demoPipeline">AI pipeline: fetch → summarize → classify</button>
+          <button type="button" class="ghost" id="demoBatch">AI map-reduce: 3 LLM jobs → merge</button>
           <span class="msg" id="formMsg"></span>
         </div>
       </form>
     </div>
+  </section>
+
+  <section class="panel">
+    <h2>Workflows <span class="msg" id="wfMsg"></span></h2>
+    <div id="workflows" class="nodes"></div>
   </section>
 
   <section class="panel">
@@ -151,6 +171,7 @@ async function refreshStats() {
     const s = await api('/api/v1/stats');
     $('#nodeId').textContent = s.nodeId;
     $('#tps').textContent = s.throughputPerSecond;
+    $('#llm').textContent = s.llmProvider + (s.rateLimits && s.rateLimits.llm ? ` (${s.rateLimits.llm}/s)` : '');
     for (const [k, v] of Object.entries(s.byStatus)) {
       const el = document.querySelector(`[data-s="${k}"]`); if (el) el.textContent = v;
     }
@@ -233,12 +254,45 @@ $('#demoFlaky').onclick = async () => {
   $('#formMsg').textContent = 'flaky job (succeeds on attempt 3) and fail job (dead-letters after 2) submitted';
   refreshJobs();
 };
+$('#demoPipeline').onclick = async () => {
+  const url = prompt('URL to analyse', 'https://en.wikipedia.org/wiki/Job_scheduler');
+  if (!url) return;
+  const wf = await api('/api/v1/workflows/examples/content-pipeline', { method: 'POST', body: JSON.stringify({ url }) });
+  $('#formMsg').textContent = `pipeline ${short(wf.id)} submitted: ${wf.totalSteps} steps`;
+  refreshWorkflows(); refreshJobs();
+};
+$('#demoBatch').onclick = async () => {
+  const wf = await api('/api/v1/workflows/examples/batch-summaries', { method: 'POST', body: '{}' });
+  $('#formMsg').textContent = `map-reduce ${short(wf.id)} submitted: ${wf.totalSteps} steps`;
+  refreshWorkflows(); refreshJobs();
+};
+
+async function refreshWorkflows() {
+  try {
+    const list = await api('/api/v1/workflows?limit=8');
+    $('#wfMsg').textContent = list.length ? '' : '— none yet; try the AI pipeline button';
+    $('#workflows').innerHTML = list.map(wf => {
+      const last = wf.steps[wf.steps.length - 1];
+      const out = wf.status === 'SUCCEEDED' && last && last.output ? JSON.stringify(last.output, null, 1) : '';
+      const err = wf.steps.find(s => s.lastError);
+      return `<div class="wf">
+        <div class="head"><span><b>${wf.name}</b> <span class="id">${short(wf.id)}</span> · ${wf.succeededSteps}/${wf.totalSteps} steps</span>
+          <span class="status ${wf.status}">${wf.status}</span></div>
+        <div class="steps">${wf.steps.map((s, i) => `${i ? '<span class="arrow">›</span>' : ''}<span class="step" title="${s.type} · ${s.attempts}/${s.maxAttempts} attempts${s.lastError ? ' · ' + s.lastError.replace(/"/g, '&quot;') : ''}"><i class="dot ${s.status}"></i>${s.stepId}</span>`).join('')}</div>
+        ${out ? `<div class="out">${out.replace(/</g, '&lt;')}</div>` : ''}
+        ${err && wf.status === 'FAILED' ? `<div class="out">${err.stepId}: ${String(err.lastError).replace(/</g, '&lt;')}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch (e) { $('#wfMsg').textContent = e.message; }
+}
+
 $('#statusFilter').onchange = refreshJobs;
 
 loadHandlers();
-refreshStats(); refreshJobs();
+refreshStats(); refreshJobs(); refreshWorkflows();
 setInterval(refreshStats, 1000);
 setInterval(refreshJobs, 1500);
+setInterval(refreshWorkflows, 1500);
 </script>
 </body>
 </html>

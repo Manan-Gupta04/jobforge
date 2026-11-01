@@ -19,6 +19,8 @@ jobforge:
   retry-max-delay-ms: 200
   default-timeout-ms: 5000
   default-max-attempts: 3
+  llm:
+    provider: mock
 
 logging:
   level:

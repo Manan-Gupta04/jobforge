@@ -16,7 +16,8 @@ import java.util.UUID;
 @Table(name = "jobs", indexes = {
         @Index(name = "ix_jobs_claim", columnList = "status, run_at, priority"),
         @Index(name = "ix_jobs_lease", columnList = "status, lease_until"),
-        @Index(name = "ix_jobs_created", columnList = "created_at")
+        @Index(name = "ix_jobs_created", columnList = "created_at"),
+        @Index(name = "ix_jobs_workflow", columnList = "workflow_id, step_id")
 }, uniqueConstraints = @UniqueConstraint(name = "uq_jobs_idempotency", columnNames = "idempotency_key"))
 public class Job {
 
@@ -70,6 +71,20 @@ public class Job {
     @Column(name = "callback_url", length = 2000)
     private String callbackUrl;
 
+    /** Set when the job is a step of a workflow; steps reference each other by {@code stepId}. */
+    @Column(name = "workflow_id")
+    private UUID workflowId;
+
+    @Column(name = "workflow_name", length = 120)
+    private String workflowName;
+
+    @Column(name = "step_id", length = 80)
+    private String stepId;
+
+    /** Topological position of the step within its workflow; gives a stable display order. */
+    @Column(name = "step_order")
+    private Integer stepOrder;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "job_dependencies", joinColumns = @JoinColumn(name = "job_id"),
             indexes = @Index(name = "ix_job_dependencies_dep", columnList = "depends_on"))
@@ -115,6 +130,13 @@ public class Job {
         j.createdAt = now;
         j.updatedAt = now;
         return j;
+    }
+
+    public void attachToWorkflow(UUID workflowId, String workflowName, String stepId, int stepOrder) {
+        this.workflowId = workflowId;
+        this.workflowName = workflowName;
+        this.stepId = stepId;
+        this.stepOrder = stepOrder;
     }
 
     /** Next occurrence of a cron job: same spec, fresh identity, no idempotency key. */
@@ -204,6 +226,10 @@ public class Job {
     public String getResult() { return result; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public String getCallbackUrl() { return callbackUrl; }
+    public UUID getWorkflowId() { return workflowId; }
+    public String getWorkflowName() { return workflowName; }
+    public String getStepId() { return stepId; }
+    public Integer getStepOrder() { return stepOrder; }
     public Set<UUID> getDependsOn() { return dependsOn; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
