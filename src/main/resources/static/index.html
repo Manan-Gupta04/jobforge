@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobForge Dashboard</title>
+<style>
+  :root {
+    --bg: #0b0f17; --panel: #121826; --panel-2: #182033; --border: #243049;
+    --text: #e6ebf5; --muted: #8b96ad; --accent: #6ea8fe;
+    --pending: #f2c94c; --running: #6ea8fe; --succeeded: #3ddc97; --dead: #ff6b6b;
+    --waiting: #b48cff; --cancelled: #8b96ad;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--panel); position: sticky; top: 0; z-index: 2; }
+  header h1 { margin: 0; font-size: 18px; letter-spacing: .3px; }
+  header h1 span { color: var(--accent); }
+  header .meta { color: var(--muted); font-size: 12px; }
+  header .meta b { color: var(--text); font-weight: 600; }
+  header a { color: var(--accent); text-decoration: none; margin-left: 14px; font-size: 12px; }
+  main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; display: grid; gap: 18px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  .card .value { font-size: 28px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .card.pending .value { color: var(--pending); } .card.running .value { color: var(--running); }
+  .card.succeeded .value { color: var(--succeeded); } .card.dead .value { color: var(--dead); }
+  .card.waiting .value { color: var(--waiting); } .card.cancelled .value { color: var(--cancelled); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .panel h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .bar { height: 10px; background: var(--panel-2); border-radius: 6px; overflow: hidden; margin: 6px 0 4px; }
+  .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), #3ddc97); width: 0; transition: width .4s; }
+  .nodes { display: grid; gap: 8px; }
+  .node { display: flex; justify-content: space-between; align-items: center; background: var(--panel-2); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+  .node .id { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .node .self { color: var(--accent); font-size: 11px; margin-left: 8px; }
+  .node .util { color: var(--muted); }
+  form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  input, select, textarea { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font: inherit; }
+  textarea { font-family: ui-monospace, Menlo, Consolas, monospace; min-height: 64px; grid-column: 1 / -1; }
+  .actions { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button { background: var(--accent); color: #06101f; border: 0; border-radius: 6px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button.danger { background: transparent; color: var(--dead); border: 1px solid var(--dead); }
+  .msg { color: var(--muted); font-size: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  td.id { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); }
+  td.err { max-width: 380px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .04em; }
+  .chip.PENDING { background: rgba(242,201,76,.15); color: var(--pending); }
+  .chip.RUNNING { background: rgba(110,168,254,.15); color: var(--running); }
+  .chip.SUCCEEDED { background: rgba(61,220,151,.15); color: var(--succeeded); }
+  .chip.DEAD { background: rgba(255,107,107,.15); color: var(--dead); }
+  .chip.WAITING { background: rgba(180,140,255,.15); color: var(--waiting); }
+  .chip.CANCELLED { background: rgba(139,150,173,.15); color: var(--cancelled); }
+  .filters { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+  .filters select { padding: 6px 8px; }
+  .tiny { font-size: 11px; padding: 4px 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Job<span>Forge</span> <span class="meta" style="margin-left:10px">distributed job scheduler</span></h1>
+  <div class="meta">
+    node <b id="nodeId">…</b> · throughput <b id="tps">0</b> jobs/s
+    <a href="/swagger-ui.html" target="_blank">API docs</a>
+    <a href="/actuator/prometheus" target="_blank">Prometheus</a>
+    <a href="/h2" target="_blank">H2 console</a>
+  </div>
+</header>
+<main>
+  <section class="cards" id="cards">
+    <div class="card waiting"><div class="label">Waiting (deps)</div><div class="value" data-s="WAITING">0</div></div>
+    <div class="card pending"><div class="label">Pending</div><div class="value" data-s="PENDING">0</div></div>
+    <div class="card running"><div class="label">Running</div><div class="value" data-s="RUNNING">0</div></div>
+    <div class="card succeeded"><div class="label">Succeeded</div><div class="value" data-s="SUCCEEDED">0</div></div>
+    <div class="card dead"><div class="label">Dead-letter</div><div class="value" data-s="DEAD">0</div></div>
+    <div class="card cancelled"><div class="label">Cancelled</div><div class="value" data-s="CANCELLED">0</div></div>
+  </section>
+
+  <section class="row">
+    <div class="panel">
+      <h2>This node</h2>
+      <div>Workers in use: <b id="inFlight">0</b> / <b id="workers">0</b> <span id="paused" class="msg"></span></div>
+      <div class="bar"><i id="utilBar"></i></div>
+      <div class="msg">Succeeded in the last 60 s: <b id="lastMinute">0</b></div>
+      <h2 style="margin-top:16px">Cluster</h2>
+      <div class="nodes" id="nodes"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Submit a job</h2>
+      <form id="submitForm">
+        <label>Type <select id="type"></select></label>
+        <label>Priority (0–10) <input id="priority" type="number" min="0" max="10" value="5"></label>
+        <label>Max attempts <input id="maxAttempts" type="number" min="1" max="50" value="3"></label>
+        <label>Timeout (ms) <input id="timeoutMs" type="number" min="100" value="60000"></label>
+        <textarea id="payload">{}</textarea>
+        <div class="actions">
+          <button type="submit">Submit</button>
+          <button type="button" class="ghost" id="fire200">Fire 200 echo jobs</button>
+          <button type="button" class="ghost" id="fire2000">Fire 2,000 echo jobs</button>
+          <button type="button" class="ghost" id="demoChain">Demo: A → B → C chain</button>
+          <button type="button" class="ghost" id="demoFlaky">Demo: retry + DLQ</button>
+          <span class="msg" id="formMsg"></span>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="filters">
+      <h2 style="margin:0">Recent jobs</h2>
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option>WAITING</option><option>PENDING</option><option>RUNNING</option>
+        <option>SUCCEEDED</option><option>DEAD</option><option>CANCELLED</option>
+      </select>
+      <span class="msg" id="listMsg"></span>
+    </div>
+    <table>
+      <thead><tr><th>Id</th><th>Type</th><th>Status</th><th>Pri</th><th>Attempts</th><th>Owner</th><th>Created</th><th>Error / result</th><th></th></tr></thead>
+      <tbody id="jobsBody"></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = (path, opts) => fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts)).then(async r => {
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || body.title || r.statusText);
+  return body;
+});
+const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString() : '';
+const short = id => id.slice(0, 8);
+
+async function loadHandlers() {
+  const hs = await api('/api/v1/handlers');
+  $('#type').innerHTML = hs.map(h => `<option value="${h.type}" title="${h.description}">${h.type}</option>`).join('');
+}
+
+async function refreshStats() {
+  try {
+    const s = await api('/api/v1/stats');
+    $('#nodeId').textContent = s.nodeId;
+    $('#tps').textContent = s.throughputPerSecond;
+    for (const [k, v] of Object.entries(s.byStatus)) {
+      const el = document.querySelector(`[data-s="${k}"]`); if (el) el.textContent = v;
+    }
+    $('#inFlight').textContent = s.inFlight; $('#workers').textContent = s.workers;
+    $('#paused').textContent = s.paused ? '(paused)' : '';
+    $('#utilBar').style.width = (100 * s.inFlight / Math.max(1, s.workers)) + '%';
+    $('#lastMinute').textContent = s.succeededLastMinute;
+    $('#nodes').innerHTML = s.nodes.map(n => `<div class="node">
+        <span class="id">${n.nodeId}${n.self ? '<span class="self">this node</span>' : ''}</span>
+        <span class="util">${n.inFlight}/${n.workers} busy · up since ${fmtTime(n.startedAt)}</span></div>`).join('')
+      || '<span class="msg">no heartbeats yet</span>';
+  } catch (e) { $('#nodeId').textContent = 'offline'; }
+}
+
+async function refreshJobs() {
+  const status = $('#statusFilter').value;
+  try {
+    const p = await api(`/api/v1/jobs?size=25${status ? '&status=' + status : ''}`);
+    $('#listMsg').textContent = `${p.totalItems} total`;
+    $('#jobsBody').innerHTML = p.items.map(j => {
+      const info = j.lastError ? j.lastError : (j.result && Object.keys(j.result).length ? JSON.stringify(j.result) : '');
+      const canCancel = ['WAITING', 'PENDING', 'RUNNING'].includes(j.status);
+      const canRetry = ['DEAD', 'CANCELLED'].includes(j.status);
+      return `<tr>
+        <td class="id" title="${j.id}">${short(j.id)}${j.dependsOn && j.dependsOn.length ? ' ⇠' + j.dependsOn.map(short).join(',') : ''}</td>
+        <td>${j.type}${j.cron ? ' <span class="msg">⟳ ' + j.cron + '</span>' : ''}</td>
+        <td><span class="chip ${j.status}">${j.status}</span></td>
+        <td>${j.priority}</td>
+        <td>${j.attempts}/${j.maxAttempts}</td>
+        <td class="id">${j.leaseOwner ? j.leaseOwner.split('-').slice(-1)[0] : ''}</td>
+        <td>${fmtTime(j.createdAt)}</td>
+        <td class="err" title="${info.replace(/"/g, '&quot;')}">${info}</td>
+        <td>${canCancel ? `<button class="tiny danger" data-cancel="${j.id}">cancel</button>` : ''}
+            ${canRetry ? `<button class="tiny ghost" data-retry="${j.id}">retry</button>` : ''}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { $('#listMsg').textContent = e.message; }
+}
+
+$('#jobsBody').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  try {
+    if (b.dataset.cancel) await api(`/api/v1/jobs/${b.dataset.cancel}/cancel`, { method: 'POST' });
+    if (b.dataset.retry) await api(`/api/v1/jobs/${b.dataset.retry}/retry`, { method: 'POST' });
+    refreshJobs();
+  } catch (err) { $('#listMsg').textContent = err.message; }
+});
+
+$('#submitForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    const payload = JSON.parse($('#payload').value || '{}');
+    const j = await api('/api/v1/jobs', { method: 'POST', body: JSON.stringify({
+      type: $('#type').value, payload, priority: +$('#priority').value,
+      maxAttempts: +$('#maxAttempts').value, timeoutMs: +$('#timeoutMs').value }) });
+    $('#formMsg').textContent = `submitted ${short(j.id)}`;
+    refreshJobs();
+  } catch (err) { $('#formMsg').textContent = err.message; }
+});
+
+async function fire(count) {
+  $('#formMsg').textContent = `submitting ${count}…`;
+  const r = await api('/api/v1/jobs/bulk', { method: 'POST', body: JSON.stringify({ type: 'echo', count, payload: { burst: true } }) });
+  $('#formMsg').textContent = `${r.submitted} jobs queued in ${r.elapsedMs} ms`;
+  refreshJobs();
+}
+$('#fire200').onclick = () => fire(200);
+$('#fire2000').onclick = () => fire(2000);
+
+$('#demoChain').onclick = async () => {
+  const a = await api('/api/v1/jobs', { method: 'POST', body: JSON.stringify({ type: 'sleep', payload: { ms: 1500, step: 'A' } }) });
+  const b = await api('/api/v1/jobs', { method: 'POST', body: JSON.stringify({ type: 'sleep', payload: { ms: 1500, step: 'B' }, dependsOn: [a.id] }) });
+  await api('/api/v1/jobs', { method: 'POST', body: JSON.stringify({ type: 'echo', payload: { step: 'C' }, dependsOn: [b.id] }) });
+  $('#formMsg').textContent = 'chain submitted: C waits for B, B waits for A';
+  refreshJobs();
+};
+$('#demoFlaky').onclick = async () => {
+  await api('/api/v1/jobs', { method: 'POST', body: JSON.stringify({ type: 'flaky', payload: { failTimes: 2 }, maxAttempts: 4 }) });
+  await api('/api/v1/jobs', { method: 'POST', body: JSON.stringify({ type: 'fail', payload: { message: 'disk on fire' }, maxAttempts: 2 }) });
+  $('#formMsg').textContent = 'flaky job (succeeds on attempt 3) and fail job (dead-letters after 2) submitted';
+  refreshJobs();
+};
+$('#statusFilter').onchange = refreshJobs;
+
+loadHandlers();
+refreshStats(); refreshJobs();
+setInterval(refreshStats, 1000);
+setInterval(refreshJobs, 1500);
+</script>
+</body>
+</html>

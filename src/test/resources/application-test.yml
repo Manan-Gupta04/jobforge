@@ -1,0 +1,25 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:jobforge-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  h2:
+    console:
+      enabled: false
+
+jobforge:
+  workers: 8
+  poll-interval-ms: 50
+  lease-seconds: 2
+  reaper-interval-ms: 300
+  retry-base-delay-ms: 50
+  retry-max-delay-ms: 200
+  default-timeout-ms: 5000
+  default-max-attempts: 3
+
+logging:
+  level:
+    com.manangupta.jobforge: WARN

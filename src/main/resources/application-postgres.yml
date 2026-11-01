@@ -1,0 +1,10 @@
+# Activate with SPRING_PROFILES_ACTIVE=postgres. Used by docker-compose for the 2-node cluster.
+spring:
+  datasource:
+    url: ${JOBFORGE_DB_URL:jdbc:postgresql://localhost:5432/jobforge}
+    username: ${JOBFORGE_DB_USER:jobforge}
+    password: ${JOBFORGE_DB_PASSWORD:jobforge}
+    driver-class-name: org.postgresql.Driver
+  h2:
+    console:
+      enabled: false
